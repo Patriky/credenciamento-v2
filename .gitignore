@@ -1,0 +1,11 @@
+## Incluir todos os arquivos .xlsx
+*.xlsx
+# excluir todos os arquivos .ipynb
+*.ipynb
+# incluir todos os arquivos .ipynb
+*.pbix
+# excluir as pastas __pycache__ e build
+__pycache__/
+build/
+storage/
+data/
