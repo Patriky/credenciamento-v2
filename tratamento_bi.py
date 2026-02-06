@@ -45,12 +45,6 @@ class ProcessadorBI:
             df_bips_cli["Dia 1"] = np.where(df_bips_cli["Dia"] == "Dia 1", 1, 0)
             df_bips_cli["Dia 2"] = np.where(df_bips_cli["Dia"] == "Dia 2", 1, 0)
 
-            # # Ajuste de data para Dia 1 (exemplo da sua lógica)
-            # df_bips_cli["horario_formatado_modificada"] = np.where(
-            #     df_bips_cli["Dia"] == "Dia 1", 
-            #     df_bips_cli["horario_formatado"] + timedelta(days=1), 
-            #     df_bips_cli["horario_formatado"]
-            # )
             
             # Truncar a data para o dia "2026-01-01", mantendo o horário
             df_bips_cli["horario_formatado_modificada"] = pd.to_datetime(

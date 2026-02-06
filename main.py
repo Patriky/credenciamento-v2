@@ -13,6 +13,7 @@ import time
 import sys
 import os
 from tratamento_bi import ProcessadorBI
+from tratamento_logs_evento import Gerar_relatorio_permanencia
 
 # Configuração de temas do CustomTkinter
 ctk.set_appearance_mode("dark")  # Opções: "dark", "light"
@@ -75,6 +76,12 @@ class AppCredenciamento(ctk.CTk):
             size=(20, 20)
         )
 
+        self.meu_icone_relogio = ctk.CTkImage(
+            light_image=Image.open(obter_caminho("images/relogio.png")),
+            dark_image=Image.open(obter_caminho("images/relogio.png")),
+            size=(20, 20)
+        )
+
         # Para a logo (se for usar em um Label depois)
         self.logo_sebrae_img = Image.open(obter_caminho("images/we_logo.png"))
 
@@ -121,7 +128,7 @@ class AppCredenciamento(ctk.CTk):
         self.lbl_developer.grid(row=6, column=0, pady=5)
 
         ## Incluir a versão do sistema
-        self.lbl_versao = ctk.CTkLabel(self, text="Versão 2.1", font=ctk.CTkFont(size=10))
+        self.lbl_versao = ctk.CTkLabel(self, text="Versão 2.2", font=ctk.CTkFont(size=10))
         self.lbl_versao.grid(row=6, column=0, pady=5, sticky="e", padx=20)
 
         # Campo de Entrada Principal (Onde os coletores vão "digitar")
@@ -147,8 +154,12 @@ class AppCredenciamento(ctk.CTk):
         self.lbl_total.pack(side="left", padx=20, pady=5)
 
 
+
+        self.btn_preparar_bi = ctk.CTkButton(self.status_frame, text="Relatório de Tempo", image=self.meu_icone_relogio, compound="left", command=self.calcular_media_permanencia, fg_color="#098bd6", hover_color="#505050", font=ctk.CTkFont(weight="bold"))
+        self.btn_preparar_bi.pack(side="right", padx=10, pady=5)
+
         self.btn_preparar_bi = ctk.CTkButton(self.status_frame, text="Preparar BI", image=self.meu_icone_graph, compound="left", command=self.iniciar_processamento_bi, fg_color="#098bd6", hover_color="#505050", font=ctk.CTkFont(weight="bold"))
-        self.btn_preparar_bi.pack(side="right", padx=10, pady=5, )
+        self.btn_preparar_bi.pack(side="right", padx=10, pady=5 )
 
         # Botão de Configuração/Agrupar no canto ou em um Frame de ferramentas
         self.btn_agrupar = ctk.CTkButton(self.status_frame,  text="Agrupar CSVs", image=self.meu_icone_merge, compound="left", command=self.agrupar_csv, fg_color="#098bd6", hover_color="#505050", font=ctk.CTkFont(weight="bold"))
@@ -349,21 +360,75 @@ class AppCredenciamento(ctk.CTk):
         thread = threading.Thread(target=tarefa_completa)
         thread.start()
 
-    def encerrar_janela_processamento(self, sucesso, mensagem):
+    def calcular_media_permanencia(self):
+
+        """Cria a janela de status e inicia a thread de processamento."""
+        # Criar Janela de Status (Pop-up)
+        self.win_status = ctk.CTkToplevel(self)
+        self.win_status.title("Relatório de Permanência - 2026")
+        self.win_status.geometry("400x250")
+        self.win_status.attributes("-topmost", True) # Fica na frente
+        self.win_status.grab_set() # Bloqueia a janela principal
+
+        self.lbl_etapa = ctk.CTkLabel(self.win_status, text="Iniciando...", font=("Arial", 14, "bold"))
+        self.lbl_etapa.pack(pady=20)
+
+        # Barra de progresso (modo indeterminado para SQL demorado)
+        self.progress = ctk.CTkProgressBar(self.win_status, width=300)
+        self.progress.pack(pady=10)
+        self.progress.configure(mode="indeterminado")
+        self.progress.start()
+
+        self.lbl_detalhes = ctk.CTkLabel(self.win_status, text="Isso pode levar alguns minutos.\nNão feche o programa.", font=("Arial", 11))
+        self.lbl_detalhes.pack(pady=10)
+
+        # Criamos uma função interna (wrapper) para rodar na Thread
+        def iniciar_relatorio():
+            relatorio = Gerar_relatorio_permanencia(self.diretorio_base)
+            # # 1. Roda o processamento pesado
+            sucesso, mensagem = relatorio.processar_dados(self.atualizar_status_ui)
+            
+            if sucesso:
+                self.adicionar_log("Relatório de permanência gerado com sucesso.")
+                self.after(0, lambda: self.encerrar_janela_processamento(True, "Relatórios de permanência gerados com sucesso!", relatorio_gerado=True))
+            else:
+                self.adicionar_log("Erro ao gerar o relatório de permanência.")
+                self.after(0, lambda: self.encerrar_janela_processamento(False, "Falha ao gerar os relatórios de permanência."))
+
+            # # 2. Quando terminar, chama a finalização na Thread Principal (UI)
+
+            # 2. Quando terminar, chama a finalização na Thread Principal (UI)
+            
+
+
+        # Inicia a Thread única
+        thread = threading.Thread(target=iniciar_relatorio)
+        thread.start()
+
+
+
+    def encerrar_janela_processamento(self, sucesso, mensagem, relatorio_gerado=False):
             """Fecha a janela e avisa o usuário."""
             if hasattr(self, 'win_status') and self.win_status.winfo_exists():
                 self.win_status.destroy()
             
             if sucesso:
-                messagebox.showinfo("Sucesso", "Arquivo gerado com sucesso!")
+                messagebox.showinfo("Sucesso", F"{mensagem}")
                 self.adicionar_log("BI Atualizado.")
+                ## abrir o arquivo HTML gerado
+                if relatorio_gerado:
+                    caminho_html = os.path.join(self.diretorio_base, "data/Relatório Gráfico de Permanência no WE.html")
+                    if os.path.exists(caminho_html):
+                        os.startfile(caminho_html)
+
             else:
-                messagebox.showerror("Erro no BI", f"Falha: {mensagem}")
+                messagebox.showerror("Erro", f"Falha: {mensagem}")
 
     def atualizar_status_ui(self, etapa, detalhe=""):
         """Função para atualizar a UI de dentro da Thread com segurança."""
         self.lbl_etapa.configure(text=etapa)
         if detalhe:
+            self.adicionar_log(f"🔄 {etapa} - {detalhe}")
             self.lbl_detalhes.configure(text=detalhe)
         self.update_idletasks() # Força a interface a se redesenhar
 
